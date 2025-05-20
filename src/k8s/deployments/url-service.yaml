@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: url-service
+  namespace: url-shortener
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: url-service
+  template:
+    metadata:
+      labels:
+        app: url-service
+    spec:
+      containers:
+      - name: url-service
+        image: url-shortener-url-service:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ConnectionStrings__Postgres
+          value: Host=postgres-service;Database=shortener;Username=$(POSTGRES_USER);Password=$(POSTGRES_PASSWORD)
+        - name: ConnectionStrings__Redis
+          value: redis-service:6379
+        - name: ConnectionStrings__RabbitMQ
+          value: amqp://$(RABBITMQ_USER):$(RABBITMQ_PASSWORD)@rabbitmq-service:5672/
+        - name: Jwt__Key
+          valueFrom:
+            secretKeyRef:
+              name: shortener-secrets
+              key: JWT_KEY
+        - name: Jwt__Issuer
+          value: UrlShortener
+        - name: Jwt__Audience
+          value: UrlShortener
+        - name: UserServiceUrl
+          value: http://user-service:8080
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: url-service
+              topologyKey: kubernetes.io/hostname

@@ -1,0 +1,59 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shortener-ingress
+  namespace: url-shortener
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - shortener.example.com
+    secretName: shortener-tls
+  rules:
+  - host: shortener.example.com
+    http:
+      paths:
+      - path: /shorten
+        pathType: Prefix
+        backend:
+          service:
+            name: url-service
+            port:
+              number: 8080
+      - path: /([a-zA-Z0-9]{6})
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: url-service
+            port:
+              number: 8080
+      - path: /register
+        pathType: Prefix
+        backend:
+          service:
+            name: user-service
+            port:
+              number: 8080
+      - path: /login
+        pathType: Prefix
+        backend:
+          service:
+            name: user-service
+            port:
+              number: 8080
+      - path: /users
+        pathType: Prefix
+        backend:
+          service:
+            name: user-service
+            port:
+              number: 8080
+      - path: /analytics
+        pathType: Prefix
+        backend:
+          service:
+            name: analytics-service
+            port:
+              number: 8080

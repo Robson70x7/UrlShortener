@@ -1,0 +1,196 @@
+version: '3.9'
+
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: Nginx.Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      url-service-1:
+        condition: service_healthy
+      user-service-1:
+        condition: service_healthy
+      analytics-service-1:
+        condition: service_healthy
+    networks:
+      - shortener-network
+
+  url-service-1:
+    build:
+      context: .
+      dockerfile: UrlShortener.UrlService/Dockerfile
+    environment:
+      - ConnectionStrings__Postgres=Host=postgres;Database=shortener;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      - ConnectionStrings__Redis=redis:6379
+      - ConnectionStrings__RabbitMQ=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
+      - Jwt__Key=${JWT_KEY}
+      - Jwt__Issuer=UrlShortener
+      - Jwt__Audience=UrlShortener
+      - UserServiceUrl=http://user-service-1:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - shortener-network
+
+  url-service-2:
+    build:
+      context: .
+      dockerfile: UrlShortener.UrlService/Dockerfile
+    environment:
+      - ConnectionStrings__Postgres=Host=postgres;Database=shortener;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      - ConnectionStrings__Redis=redis:6379
+      - ConnectionStrings__RabbitMQ=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
+      - Jwt__Key=${JWT_KEY}
+      - Jwt__Issuer=UrlShortener
+      - Jwt__Audience=UrlShortener
+      - UserServiceUrl=http://user-service-1:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - shortener-network
+
+  user-service-1:
+    build:
+      context: .
+      dockerfile: UrlShortener.UserService/Dockerfile
+    environment:
+      - ConnectionStrings__Postgres=Host=postgres;Database=shortener;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      - ConnectionStrings__Redis=redis:6379
+      - Jwt__Key=${JWT_KEY}
+      - Jwt__Issuer=UrlShortener
+      - Jwt__Audience=UrlShortener
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - shortener-network
+
+  user-service-2:
+    build:
+      context: .
+      dockerfile: UrlShortener.UserService/Dockerfile
+    environment:
+      - ConnectionStrings__Postgres=Host=postgres;Database=shortener;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      - ConnectionStrings__Redis=redis:6379
+      - Jwt__Key=${JWT_KEY}
+      - Jwt__Issuer=UrlShortener
+      - Jwt__Audience=UrlShortener
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - shortener-network
+
+  analytics-service-1:
+    build:
+      context: .
+      dockerfile: UrlShortener.AnalyticsService/Dockerfile
+    environment:
+      - ConnectionStrings__Postgres=Host=postgres;Database=shortener;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      - ConnectionStrings__Redis=redis:6379
+      - ConnectionStrings__RabbitMQ=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
+      - Jwt__Key=${JWT_KEY}
+      - Jwt__Issuer=UrlShortener
+      - Jwt__Audience=UrlShortener
+      - MaxMind__DatabasePath=/app/maxmind/GeoLite2-City.mmdb
+    volumes:
+      - maxmind-data:/app/maxmind
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - shortener-network
+
+  analytics-service-2:
+    build:
+      context: .
+      dockerfile: UrlShortener.AnalyticsService/Dockerfile
+    environment:
+      - ConnectionStrings__Postgres=Host=postgres;Database=shortener;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      - ConnectionStrings__Redis=redis:6379
+      - ConnectionStrings__RabbitMQ=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
+      - Jwt__Key=${JWT_KEY}
+      - Jwt__Issuer=UrlShortener
+      - Jwt__Audience=UrlShortener
+      - MaxMind__DatabasePath=/app/maxmind/GeoLite2-City.mmdb
+    volumes:
+      - maxmind-data:/app/maxmind
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - shortener-network
+
+  postgres:
+    image: postgres:16
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=shortener
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shortener-network
+
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shortener-network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shortener-network
+
+volumes:
+  postgres-data:
+  rabbitmq-data:
+  maxmind-data:
+
+networks:
+  shortener-network:
+    driver: bridge

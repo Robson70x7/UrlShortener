@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-service
+  namespace: url-shortener
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: analytics-service
+  template:
+    metadata:
+      labels:
+        app: analytics-service
+    spec:
+      containers:
+      - name: analytics-service
+        image: url-shortener-analytics-service:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ConnectionStrings__Postgres
+          value: Host=postgres-service;Database=shortener;Username=$(POSTGRES_USER);Password=$(POSTGRES_PASSWORD)
+        - name: ConnectionStrings__Redis
+          value: redis-service:6379
+        - name: ConnectionStrings__RabbitMQ
+          value: amqp://$(RABBITMQ_USER):$(RABBITMQ_PASSWORD)@rabbitmq-service:5672/
+        - name: Jwt__Key
+          valueFrom:
+            secretKeyRef:
+              name: shortener-secrets
+              key: JWT_KEY
+        - name: Jwt__Issuer
+          value: UrlShortener
+        - name: Jwt__Audience
+          value: UrlShortener
+        - name: MaxMind__DatabasePath
+          value: /app/maxmind/GeoLite2-City.mmdb
+        volumeMounts:
+        - name: maxmind-storage
+          mountPath: /app/maxmind
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: maxmind-storage
+        persistentVolumeClaim:
+          claimName: maxmind-pvc
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: analytics-service
+              topologyKey: kubernetes.io/hostname

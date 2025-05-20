@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-service
+  namespace: url-shortener
+spec:
+  selector:
+    app: analytics-service
+  ports:
+  - port: 8080
+    targetPort: 8080
+  type: ClusterIP
